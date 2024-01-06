@@ -137,9 +137,14 @@ module user_proj_example #(
     wire[1:0] code_bank, data_bank;
     wire [22:0] code_addr, data_addr;
 
-    assign request_data = (wbs_stb_i & wbs_cyc_i &(wbs_adr_i[31:24] == 8'h30)) ? 1 : 0;
+    // assign request_data = (wbs_stb_i & wbs_cyc_i &(wbs_adr_i[31:24] == 8'h30)) ? 1 : 0;
+    assign request_data = (wbs_stb_i & wbs_cyc_i &(wbs_adr_i[11:8] == 4'b0 | wbs_adr_i[11:8] == 4'b1)) ? 1 : 0;
+    // assign request_data = (wbs_stb_i & wbs_cyc_i &(wbs_adr_i[15:12] == 4'b1)) ? 1 : 0;
     assign request_mprj = ((wbs_adr_i[31:24] == 8'h26)) ? 1 : 0;
-    assign request_code = (wbs_stb_i & wbs_cyc_i &(wbs_adr_i[31:24] == 8'h38)) ? 1 : 0;
+    // assign request_code = (wbs_stb_i & wbs_cyc_i &(wbs_adr_i[31:24] == 8'h38)) ? 1 : 0;
+    assign request_code = (wbs_stb_i & wbs_cyc_i &(wbs_adr_i[11:8] == 4'b0010 | wbs_adr_i[11:8] == 4'b0011)) ? 1 : 0;
+    // assign request_code = (wbs_stb_i & wbs_cyc_i &(wbs_adr_i[15:12] == 4'b0)) ? 1 : 0;
+
     assign code_bank = (wbs_adr_i[9:8]>2'b01) ? (wbs_adr_i[9:8]-2'b10) : wbs_adr_i[9:8];
     assign code_addr = (request_code) ? {wbs_adr_i[22:10], code_bank, wbs_adr_i[7:0]} : 0;
     assign data_bank = (wbs_adr_i[9:8]<2'b10) ? (wbs_adr_i[9:8]+2'b10) : wbs_adr_i[9:8];

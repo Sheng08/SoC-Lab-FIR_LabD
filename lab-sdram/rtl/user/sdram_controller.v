@@ -29,24 +29,6 @@ module sdram_controller (
         input   in_valid,           // pulse high to initiate a read/write
         output  out_valid           // pulses high when data from read is valid
     );
-    
-reg[22:0] prefetch_addr; 
-reg prefetch;
-
-always@(posedge clk)begin     
-    if(in_valid)
-    	prefetch_addr <= addr + 22'd4;     
-    else if(!in_valid && out_valid_q2)
-    	prefetch_addr <= 0;
-    	
-    if((prefetch_addr == addr) && in_valid && !rw)
-    	prefetch <= 1;
-    else if((prefetch_addr != addr) && in_valid && !rw)
-    	prefetch <= 0;
-    else if(rw)
-    	prefetch <= 0;
-    	
-end
 
     // Jiin: SDRAM Timing  3-3-3, i.e. CASL=3, PRE=3, ACT=3
     localparam tCASL            = 13'd2;       // 3T actually
@@ -127,7 +109,7 @@ end
 
     reg [22:0] addr_d, addr_q;
     reg [31:0] data_d, data_q;
-    reg out_valid_d, out_valid_q, out_valid_q1, out_valid_q2;
+    reg out_valid_d, out_valid_q, out_valid_delay;
 
     reg [15:0] delay_ctr_d, delay_ctr_q;
 
@@ -150,6 +132,20 @@ end
     assign data_out = data_q;
     assign busy = !ready_q;
     assign out_valid = out_valid_q;
+
+    reg[22:0] prefetch_address; 
+    reg prefetch_en;
+
+    always@(posedge clk)begin     
+        if(in_valid)
+            prefetch_address <= addr + 22'd4;     
+        else if(!in_valid && out_valid_delay)
+            prefetch_address <= 0;
+            
+        if((prefetch_address == addr) && in_valid && !rw)
+            prefetch_en <= 1;
+        else prefetch_en <= 0;
+    end
     
     always @* begin
         // Default values
@@ -248,15 +244,16 @@ end
                     precharge_bank_d = 3'b100; // all banks
                     refresh_flag_d = 1'b0; // clear the refresh flag
                 end 
-                else if (!ready_q) begin // operation waiting
+                else 
+                if (!ready_q) begin // operation waiting
                     ready_d = 1'b1; // clear the queue
                     rw_op_d = saved_rw_q; // save the values we'll need later
                     addr_d = saved_addr_q;                    
-                    if(prefetch)begin
-                        a_d = {2'b0, 1'b0, prefetch_addr[7:0], 2'b0};
-                        ba_d = prefetch_addr[9:8];
+                    if(prefetch_en)begin
+                        a_d = {2'b0, 1'b0, prefetch_address[7:0], 2'b0};
+                        ba_d = prefetch_address[9:8];
                         cmd_d = CMD_READ;
-		    end
+		            end
 		    
                     if (saved_rw_q) // Write
                         data_d = saved_data_q;
@@ -269,7 +266,7 @@ end
                                 state_d = WRITE;
                             else
                                 //state_d = READ;
-                             	if(prefetch) begin
+                             	if(prefetch_en) begin
                              	   state_d = IDLE;
                              	   data_d = dqi_d;
                                    out_valid_d = 1'b1;
@@ -340,8 +337,8 @@ end
                 out_valid_d = 1'b1;
                 state_d = IDLE;
                 
-                a_d = {2'b0, 1'b0, prefetch_addr[7:0], 2'b0};
-                ba_d = prefetch_addr[9:8];
+                a_d = {2'b0, 1'b0, prefetch_address[7:0], 2'b0};
+                ba_d = prefetch_address[9:8];
                 cmd_d = CMD_READ;
             end
 
@@ -403,15 +400,14 @@ end
         a_q <= a_d;
         dq_q <= dq_d;
         dqi_q <= dqi_d;
-        	
+
         next_state_q <= next_state_d;
         refresh_flag_q <= refresh_flag_d;
         refresh_ctr_q <= refresh_ctr_d;
         data_q <= data_d;
         addr_q <= addr_d;
         out_valid_q <= out_valid_d;
-        out_valid_q1 <= out_valid_q;
-        out_valid_q2 <= out_valid_q1;
+        out_valid_delay <= out_valid_q;
         row_open_q <= row_open_d;
         for (i = 0; i < 4; i = i + 1)
             row_addr_q[i] <= row_addr_d[i];
